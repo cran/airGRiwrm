@@ -59,7 +59,7 @@ str(InputsCrit)
 ## ----CalibOption--------------------------------------------------------------
 CalibOptions <- CreateCalibOptions(InputsModel)
 
-## ---- echo=FALSE--------------------------------------------------------------
+## ----echo=FALSE---------------------------------------------------------------
 save(RunOptions, InputsCrit, CalibOptions, IndPeriod_Run, file = file.path(tempdir(), "V02.RData"))
 
 ## ----Calibration--------------------------------------------------------------
@@ -74,7 +74,7 @@ OutputsModels <- RunModel(
   Param = ParamMichel
 )
 
-## ---- fig.height = 5, fig.width = 8-------------------------------------------
+## ----fig.height = 5, fig.width = 8--------------------------------------------
 plot(OutputsModels, Qobs = Qobs[IndPeriod_Run,])
 
 ## -----------------------------------------------------------------------------

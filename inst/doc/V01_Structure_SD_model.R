@@ -30,7 +30,7 @@ plot(griwrm)
 BasinsObs <- Severn$BasinsObs
 str(BasinsObs)
 
-## ---- warning=FALSE, message=FALSE--------------------------------------------
+## ----warning=FALSE, message=FALSE---------------------------------------------
 
 DatesR <- BasinsObs[[1]]$DatesR
 
