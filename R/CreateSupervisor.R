@@ -1,5 +1,8 @@
 #' Creation of a Supervisor for handling regulation in a model
 #'
+#' @details
+#' See [RunModel.Supervisor] and vignettes for examples of use.
+#'
 #' @param InputsModel \[object of type `GRiwrmInputsModel`\] inputs of the model
 #' @param TimeStep [numeric] number of time steps between each supervision
 #'
@@ -10,29 +13,14 @@
 #' - `Controllers` [list]: list of the controllers used in the supervised simulation (See [CreateController])
 #' - some internal state variables updated during simulation (`ts.index`, `ts.previous`, `ts.date`, `ts.index0`, `controller.id`)
 #' @export
+#' @seealso [RunModel.Supervisor()], [CreateController()]
 #'
-#' @examples
-#' data(Severn)
-#' nodes <- Severn$BasinsInfo[, c("gauge_id", "downstream_id", "distance_downstream", "area")]
-#' nodes$model <- "RunModel_GR4J"
-#' griwrm <- CreateGRiwrm(nodes,
-#'                  list(id = "gauge_id",
-#'                       down = "downstream_id",
-#'                       length = "distance_downstream"))
-#' BasinsObs <- Severn$BasinsObs
-#' DatesR <- BasinsObs[[1]]$DatesR
-#' PrecipTot <- cbind(sapply(BasinsObs, function(x) {x$precipitation}))
-#' PotEvapTot <- cbind(sapply(BasinsObs, function(x) {x$peti}))
-#' Qobs <- cbind(sapply(BasinsObs, function(x) {x$discharge_spec}))
-#' Precip <- ConvertMeteoSD(griwrm, PrecipTot)
-#' PotEvap <- ConvertMeteoSD(griwrm, PotEvapTot)
-#' InputsModel <- CreateInputsModel(griwrm, DatesR, Precip, PotEvap, Qobs)
-#' sv <- CreateSupervisor(InputsModel)
 CreateSupervisor <- function(InputsModel, TimeStep = 1L) {
-  if(!inherits(InputsModel, "GRiwrmInputsModel")) {
+  if (!inherits(InputsModel, "GRiwrmInputsModel")) {
     stop("`InputsModel` parameter must of class 'GRiwrmInputsModel' (See ?CreateInputsModel.GRiwrm)")
   }
-  if(!is.integer(TimeStep)) stop("`TimeStep` parameter must be an integer")
+  if (!is.integer(TimeStep)) stop("`TimeStep` parameter must be an integer")
+  if (TimeStep < 1) stop("`TimeStep` parameter must be strictly positive")
 
   # Create Supervisor environment from the parent of GlobalEnv
   e <- new.env(parent = parent.env(globalenv()))
@@ -48,6 +36,12 @@ CreateSupervisor <- function(InputsModel, TimeStep = 1L) {
   e$DatesR <- InputsModel[[1]]$DatesR
   e$InputsModel <- InputsModel
   e$griwrm <- attr(InputsModel, "GRiwrm")
+  # Commands U are only applied on DirectInjection and Diversion
+  e$nodeProperties <- getAllNodesProperties(e$griwrm)
+  models4U <- c("Diversion", "RunModel_Reservoir")
+  e$griwrm4U <-
+    e$griwrm[is.na(e$griwrm$model) |
+             (!is.na(e$griwrm$model) & e$griwrm$model %in% models4U), ]
   e$OutputsModel <- list()
   e$.TimeStep <- TimeStep
 
@@ -73,4 +67,9 @@ CreateSupervisor <- function(InputsModel, TimeStep = 1L) {
   e$controller.id <- NULL
 
   return(e)
+}
+
+
+is.Supervisor <- function(x) {
+  return(inherits(x, "Supervisor") && x$.isSupervisor == "3FJKmDcJ4snDbVBg")
 }

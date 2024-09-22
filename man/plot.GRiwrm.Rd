@@ -2,46 +2,138 @@
 % Please edit documentation in R/plot.GRiwrm.R
 \name{plot.GRiwrm}
 \alias{plot.GRiwrm}
-\title{Display of a diagram representing the network structure of a GRiwrm object}
+\title{Plot of a diagram representing the network structure of a GRiwrm object}
 \usage{
 \method{plot}{GRiwrm}(
   x,
   display = TRUE,
   orientation = "LR",
-  width = "100\%",
-  height = "100\%",
+  with_donors = TRUE,
+  box_colors = c(UpstreamUngauged = "#eef", UpstreamGauged = "#aaf", IntermediateUngauged
+    = "#efe", IntermediateGauged = "#afa", Reservoir = "#9de", DirectInjection = "#faa"),
+  defaultClassDef = "stroke:#333",
+  header = "\%\%{init: {'theme': 'neutral'} }\%\%",
+  footer = NULL,
   ...
 )
 }
 \arguments{
 \item{x}{[GRiwrm object] data to display. See \link{CreateGRiwrm} for details}
 
-\item{display}{\link{logical} if \code{TRUE} displays the diagram with \link[DiagrammeR:mermaid]{DiagrammeR::mermaid}, returns the mermaid code otherwise}
+\item{display}{\link{logical} if \code{TRUE} plots the diagram, returns the mermaid code otherwise}
 
-\item{orientation}{\link{character} orientation of the graph. Possible values are "LR" (left-right), "RL" (right-left), "TB" (top-bottom), or "BT" (bottom-top). "LR" by default}
+\item{orientation}{\link{character} orientation of the graph. Possible values are
+"LR" (left-right), "RL" (right-left), "TB" (top-bottom), or "BT" (bottom-top).}
 
-\item{width}{\link{numeric} width of the resulting graphic in pixels (See \link[DiagrammeR:mermaid]{DiagrammeR::mermaid})}
+\item{with_donors}{\link{logical} for drawing boxes around ungauged nodes and their donors}
 
-\item{height}{\link{numeric} height of the resulting graphic in pixels (See \link[DiagrammeR:mermaid]{DiagrammeR::mermaid})}
+\item{box_colors}{\link{list} containing the color used for the different types of nodes}
 
-\item{...}{Other arguments and parameters you would like to send to JavaScript (See \link[DiagrammeR:mermaid]{DiagrammeR::mermaid})}
+\item{defaultClassDef}{\link{character} default style apply to all boxes}
+
+\item{header}{mermaid script to add before the generated script (see Details)}
+
+\item{footer}{mermaid script to add after the generated script}
+
+\item{...}{further parameters passed to \link{mermaid}}
 }
 \value{
 Mermaid code of the diagram if display is \code{FALSE}, otherwise the function returns the diagram itself.
 }
 \description{
-Display of a diagram representing the network structure of a GRiwrm object
+Plot of a diagram representing the network structure of a GRiwrm object
 }
 \details{
-This function only works inside RStudio because the HTMLwidget produced by DiagrammeR
-is not handled on some platforms
+\code{header} parameter allows to add any mermaid code injected before the \code{graph}
+instruction. It is notably useful for injecting directives that impact the
+format of the graph. See \href{https://mermaid.js.org/config/directives.html}{mermaid documentation on directives} for
+more details and also the
+\href{https://github.com/mermaid-js/mermaid/blob/master/packages/mermaid/src/schemas/config.schema.yaml#L1878}{complete list of available directives}.
 }
 \examples{
+library(airGRiwrm)
+
+#########################################
+# Network of 2 nodes distant of 150 km: #
+#########################################
+# - an upstream reservoir modeled as a direct flow injection (no model)
+# - a gauging station downstream a catchment of 360 km² modeled with GR4J
+db <- data.frame(id = c("Reservoir", "GaugingDown"),
+                 length = c(150, NA),
+                 down = c("GaugingDown", NA),
+                 area = c(NA, 360),
+                 model = c(NA, "RunModel_GR4J"),
+                 stringsAsFactors = FALSE)
+griwrm_basic <- CreateGRiwrm(db)
+griwrm_basic
+# Network diagram with direct flow node in red, intermediate sub-basin in green
 \dontrun{
-# Display diagram
-plot.GRiwrm(griwrm)
-# Is the same as
-DiagrammeR::mermaid(plot.GRiwrm(griwrm, display = FALSE), width = "100\%", height = "100\%")
+plot(griwrm_basic)
 }
 
+###################################################
+# GR4J semi-distributed model of the Severn River #
+###################################################
+data(Severn)
+nodes <- Severn$BasinsInfo
+nodes$model <- "RunModel_GR4J"
+str(nodes)
+# Mismatch column names are renamed to stick with GRiwrm requirements
+rename_columns <- list(id = "gauge_id",
+                       down = "downstream_id",
+                       length = "distance_downstream")
+griwrm_severn <- CreateGRiwrm(nodes, rename_columns)
+griwrm_severn
+# Network diagram with upstream basin nodes in blue, intermediate sub-basin in green
+\dontrun{
+plot(griwrm_severn)
+}
+
+####################################################################
+# Severn network with an ungauged station at nodes 54029 and 54001 #
+####################################################################
+nodes_ungauged <- nodes
+nodes_ungauged$model[nodes_ungauged$gauge_id \%in\% c("54029", "54001")] <- "Ungauged"
+# By default the first gauged node at downstream is used for parameter calibration (54032)
+# Add a `donor`column for defining manually an upstream or sibling donor
+nodes_ungauged$donor <- as.character(NA)
+nodes_ungauged$donor[nodes_ungauged$id == "54001"] <- "54095"
+griwrm_ungauged <- CreateGRiwrm(nodes_ungauged, rename_columns)
+griwrm_ungauged
+# Network diagram with gauged nodes of vivid color, and ungauged nodes of dull color
+\dontrun{
+plot(griwrm_ungauged)
+}
+
+###########################################################
+# Severn network with a Diversion on the node "54029"     #
+# to a reservoir which transfer flows to the node "54001" #
+# and a withdrawal on the reservoir                       #
+###########################################################
+nodes_div <- nodes[, c("gauge_id", "downstream_id", "distance_downstream", "model", "area")]
+nodes_div <- rbind(
+  nodes_div,
+  data.frame(gauge_id            = c("54029"    , "Reservoir"         , "Irrigation_Pump"),
+             downstream_id       = c("Reservoir", "54001"             , "Reservoir"      ),
+             distance_downstream = c(10         , 5                   , 0                ),
+             model               = c("Diversion", "RunModel_Reservoir", NA      ),
+             area                = c(NA         , NA                  , NA))
+)
+griwrm_div <- CreateGRiwrm(nodes_div, rename_columns)
+# Network diagram figures Diversion node by a red frame and a red arrow
+\dontrun{
+plot(griwrm_div, orientation = "TB")
+}
+
+# It's also possible to custom the diagram's look with mermaid directives
+# (See details in plot.GRiwrm help topic)
+\dontrun{
+plot(
+  griwrm_div,
+  header = "\%\%{init: {'flowchart': {'nodeSpacing': 30, 'rankSpacing': 30, 'curve': 'linear'}}}\%\%"
+)
+}
+}
+\seealso{
+\code{\link[=CreateGRiwrm]{CreateGRiwrm()}}
 }

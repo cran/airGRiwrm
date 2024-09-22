@@ -16,7 +16,6 @@ Severn$BasinsInfo
 
 ## -----------------------------------------------------------------------------
 nodes <- Severn$BasinsInfo[, c("gauge_id", "downstream_id", "distance_downstream", "area")]
-nodes$distance_downstream <- nodes$distance_downstream #je ne comprends pas cette ligne, elle semble inutile
 nodes$model <- "RunModel_GR4J"
 
 ## -----------------------------------------------------------------------------

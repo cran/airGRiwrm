@@ -82,7 +82,7 @@ test_that("throws error on wrong column name", {
                                  TempMean = l$TempMean,
                                  ZInputs = l$ZInputs,
                                  HypsoData = l$HypsoData),
-               regexp = "column names must be included in")
+               regexp = "column names must be included in.*Up0")
   colnames(l$Precip) <- NULL
   expect_error(CreateInputsModel(l$griwrm,
                                  DatesR = l$DatesR,
@@ -127,20 +127,20 @@ test_that("throws error when missing CemaNeige data", {
                regexp = "'TempMean' is missing")
 })
 
-test_that("throws error when missing Qobs on node not related to an hydrological model", {
+test_that("throws error when missing Qinf on node Direct Injection node", {
   l$griwrm$model[1] <- NA
   expect_error(CreateInputsModel(l$griwrm,
                                  DatesR = l$DatesR,
                                  Precip = l$Precip,
                                  PotEvap = l$PotEvap),
-               regexp = "'Qobs' column names must at least contain")
+               regexp = "'Qinf' column names must at least contain")
 
   expect_error(CreateInputsModel(l$griwrm,
                                  DatesR = l$DatesR,
                                  Precip = l$Precip,
                                  PotEvap = l$PotEvap,
-                                 Qobs = l$Qobs[, -1]),
-               regexp = "'Qobs' column names must at least contain")
+                                 Qinf = l$Qobs[, -1]),
+               regexp = "'Qinf' column names must at least contain")
 })
 
 test_that("must works with node not related to an hydrological model", {
@@ -150,7 +150,7 @@ test_that("must works with node not related to an hydrological model", {
     DatesR = l$DatesR,
     Precip = l$Precip,
     PotEvap = l$PotEvap,
-    Qobs = l$Qobs[, 1, drop = FALSE],
+    Qinf = l$Qobs[, 1, drop = FALSE],
     TempMean = l$TempMean,
     ZInputs = l$ZInputs,
     HypsoData = l$HypsoData
@@ -159,14 +159,16 @@ test_that("must works with node not related to an hydrological model", {
   expect_equal(colnames(IM[[2]]$Qupstream), c("Up1", "Up2"))
 })
 
-test_that("negative observed flow on catchment should throw error", {
-  l$Qobs[100, 1] <- -99
-  expect_error(CreateInputsModel(l$griwrm,
+test_that("Qinf on hydrological nodes should throw a warning", {
+  expect_warning(CreateInputsModel(l$griwrm,
                                  DatesR = l$DatesR,
                                  Precip = l$Precip,
                                  PotEvap = l$PotEvap,
-                                 Qobs = l$Qobs),
-               regexp = "Negative flow found")
+                                 Qinf = l$Qobs,
+                                 TempMean = l$TempMean,
+                                 ZInputs = l$ZInputs,
+                                 HypsoData = l$HypsoData),
+               regexp = "columns in 'Qinf' are ignored since they don't match with")
   l$griwrm$model[1] <- NA
   expect_s3_class(suppressWarnings(
     CreateInputsModel(
@@ -174,11 +176,108 @@ test_that("negative observed flow on catchment should throw error", {
       DatesR = l$DatesR,
       Precip = l$Precip,
       PotEvap = l$PotEvap,
-      Qobs = l$Qobs,
+      Qinf = l$Qobs[,1, drop = F],
       TempMean = l$TempMean,
       ZInputs = l$ZInputs,
       HypsoData = l$HypsoData
     )
   ),
   "GRiwrmInputsModel")
+})
+
+# data set up
+e <- setupRunModel(runInputsModel = FALSE)
+# variables are copied from environment 'e' to the current environment
+# https://stackoverflow.com/questions/9965577/r-copy-move-one-environment-to-another
+for(x in ls(e)) assign(x, get(x, e))
+
+test_that("Ungauged node should inherits its FUN_MOD from the downstream gauged node", {
+
+  nodes$model[nodes$id == "54032"] <- "Ungauged"
+  griwrmV05 <- CreateGRiwrm(nodes)
+  IM <- suppressWarnings(
+    CreateInputsModel(griwrmV05, DatesR, Precip, PotEvap)
+  )
+  expect_equal(IM[["54032"]]$FUN_MOD, "RunModel_GR4J")
+})
+
+test_that("Network with Diversion works", {
+  n_div <- rbind(
+    data.frame(id = "54029",
+               down = "54002",
+               length = 20,
+               model = "Diversion",
+               area = NA),
+    nodes
+  )
+  g <- CreateGRiwrm(n_div)
+  Qinf = matrix(-1, nrow = length(DatesR), ncol = 1)
+  colnames(Qinf) = "54029"
+  IM <- suppressWarnings(
+    CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf)
+  )
+  expect_equal(IM[["54032"]]$UpstreamNodes, c("54029", "54001"))
+  expect_equal(IM[["54032"]]$UpstreamVarQ , c("54029" = "Qsim_m3", "54001" = "Qsim_m3"))
+  expect_equal(IM[["54002"]]$UpstreamNodes, "54029")
+  expect_equal(IM[["54002"]]$UpstreamIsModeled  , c("54029" = TRUE))
+  expect_equal(IM[["54002"]]$UpstreamVarQ , c("54029" = "Qdiv_m3"))
+  expect_equivalent(IM$`54029`$Qmin, matrix(0, nrow = length(DatesR), ncol = 1))
+})
+
+test_that("Diversion node: checks about 'Qmin'", {
+  n_div <- rbind(nodes,
+                 data.frame(id = "54029", down = "54002", length = 50, area = NA, model = "Diversion"))
+  g <- CreateGRiwrm(n_div)
+  Qinf = matrix(-1, nrow = length(DatesR), ncol = 1)
+  colnames(Qinf) = "54029"
+  expect_warning(CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf = Qinf),
+                 regexp = "Zero values")
+  Qmin <- -Qinf
+  IM <- CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf = Qinf, Qmin = Qmin)
+  expect_equivalent(IM$`54029`$Qmin, Qmin)
+  QminNA <- Qmin
+  QminNA[1] <- NA
+  expect_error(CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf = Qinf, Qmin = QminNA),
+               regexp = "NA")
+  QminBadCol <- Qmin
+  colnames(QminBadCol) = "54002"
+  expect_error(CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf = Qinf, Qmin = QminBadCol),
+               regexp = "columns that does not match with IDs of Diversion nodes")
+})
+
+test_that("Node with upstream nodes having area = NA should return correct BasinsAreas", {
+  nodes <- loadSevernNodes()
+  # Reduce the network
+  nodes <- nodes[nodes$id %in% c("54095", "54001"), ]
+  nodes$down[nodes$id == "54001"] <- NA
+  nodes$length[nodes$id == "54001"] <- NA
+  # Insert a dam downstream the location the gauging station 54095
+  # The dam is a direct injection node
+  nodes$down[nodes$id == "54095"] <- "Dam"
+  nodes$length[nodes$id == "54095"] <- 0
+  nodes <- rbind(nodes,
+                 data.frame(id = "Dam",
+                            down = "54001",
+                            length = 42,
+                            area = NA,
+                            model = "RunModel_Reservoir"))
+  g <- CreateGRiwrm(nodes)
+  Qinf <- data.frame(
+    Dam = rep(0,11536)
+  )
+  e <- setupRunModel(griwrm = g, runInputsModel = FALSE, Qinf = Qinf)
+  for (x in ls(e)) assign(x, get(x, e))
+  InputsModel <-
+    suppressWarnings(CreateInputsModel(g, DatesR, Precip, PotEvap, Qinf = Qinf))
+  expect_equal(sum(InputsModel$`54001`$BasinAreas),
+               g$area[g$id == "54001"])
+})
+
+test_that("Use of Qinf for Qrelease should raise a warning",  {
+  g <- CreateGRiwrm(n_rsrvr)
+  e <- setupRunModel(griwrm = g, runInputsModel = FALSE)
+  for (x in ls(e)) assign(x, get(x, e))
+  expect_warning(CreateInputsModel(griwrm, DatesR, Precip, PotEvap,
+                                   TempMean = TempMean,
+                                   Qinf = Qinf_rsrvr))
 })

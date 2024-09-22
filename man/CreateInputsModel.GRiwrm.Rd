@@ -9,7 +9,10 @@
   DatesR,
   Precip = NULL,
   PotEvap = NULL,
+  Qinf = NULL,
   Qobs = NULL,
+  Qmin = NULL,
+  Qrelease = NULL,
   PrecipScale = TRUE,
   TempMean = NULL,
   TempMin = NULL,
@@ -17,6 +20,7 @@
   ZInputs = NULL,
   HypsoData = NULL,
   NLayers = 5,
+  IsHyst = FALSE,
   ...
 )
 }
@@ -25,121 +29,93 @@
 
 \item{DatesR}{\link{POSIXt} vector of dates}
 
-\item{Precip}{(optional) \link{matrix} or \link{data.frame} frame of numeric containing precipitation in [mm per time step]. Column names correspond to node IDs}
+\item{Precip}{(optional) \link{matrix} or \link{data.frame} of \link{numeric} containing
+precipitation in [mm per time step]. Column names correspond to node IDs}
 
-\item{PotEvap}{(optional) \link{matrix} or \link{data.frame} frame of numeric containing potential evaporation [mm per time step]. Column names correspond to node IDs}
+\item{PotEvap}{(optional) \link{matrix} or \link{data.frame} of \link{numeric} containing
+potential evaporation [mm per time step]. Column names correspond to node IDs}
 
-\item{Qobs}{(optional) \link{matrix} or \link{data.frame} frame of numeric containing observed flows in [mm per time step]. Column names correspond to node IDs}
+\item{Qinf}{(optional) \link{matrix} or \link{data.frame} of \link{numeric} containing
+observed flows. It must be provided only for nodes of type "Direct
+injection" and "Diversion". See \link{CreateGRiwrm} for
+details about these node types. Unit is [mm per time step] for nodes
+with an area, and [m3 per time step] for nodes with \code{area=NA}.
+Column names correspond to node IDs. Negative flows are abstracted from
+the model and positive flows are injected to the model}
 
-\item{PrecipScale}{(optional) named \link{vector} of \link{logical} indicating if the mean of the precipitation interpolated on the elevation layers must be kept or not, required to create CemaNeige module inputs, default \code{TRUE} (the mean of the precipitation is kept to the original value)}
+\item{Qobs}{(deprecated) use \code{Qinf} instead}
 
-\item{TempMean}{(optional) \link{matrix} or \link{data.frame} of time series of mean air temperature [°C], required to create the CemaNeige module inputs}
+\item{Qmin}{(optional) \link{matrix} or \link{data.frame} of \link{numeric} containing
+minimum flows to let downstream of a node with a Diversion [m3 per
+time step]. Default is zero. Column names correspond to node IDs}
 
-\item{TempMin}{(optional) \link{matrix} or \link{data.frame} of time series of minimum air temperature [°C], possibly used to create the CemaNeige module inputs}
+\item{Qrelease}{(optional) \link{matrix} or \link{data.frame} of \link{numeric} containing
+release flows by nodes using the model \code{RunModel_Reservoir} [m3 per
+time step]}
 
-\item{TempMax}{(optional) \link{matrix} or \link{data.frame} of time series of maximum air temperature [°C], possibly used to create the CemaNeige module inputs}
+\item{PrecipScale}{(optional) named \link{vector} of \link{logical} indicating if the
+mean of the precipitation interpolated on the elevation layers must be
+kept or not, required to create CemaNeige module inputs, default \code{TRUE}
+(the mean of the precipitation is kept to the original value)}
 
-\item{ZInputs}{(optional) named \link{vector} of \link{numeric} giving the mean elevation of the Precip and Temp series (before extrapolation) [m], possibly used to create the CemaNeige module input}
+\item{TempMean}{(optional) \link{matrix} or \link{data.frame} of time series of mean
+air temperature [°C], required to create the CemaNeige module inputs}
 
-\item{HypsoData}{(optional) \link{matrix} or \link{data.frame} containing 101 \link{numeric} rows: min, q01 to q99 and max of catchment elevation distribution [m], if not defined a single elevation is used for CemaNeige}
+\item{TempMin}{(optional) \link{matrix} or \link{data.frame} of time series of minimum
+air temperature [°C], possibly used to create the CemaNeige module inputs}
 
-\item{NLayers}{(optional) named \link{vector} of \link{numeric} integer giving the number of elevation layers requested \link{-}, required to create CemaNeige module inputs, default=5}
+\item{TempMax}{(optional) \link{matrix} or \link{data.frame} of time series of maximum
+air temperature [°C], possibly used to create the CemaNeige module inputs}
+
+\item{ZInputs}{(optional) named \link{vector} of \link{numeric} giving the mean
+elevation of the Precip and Temp series (before extrapolation) [m],
+possibly used to create the CemaNeige module input}
+
+\item{HypsoData}{(optional) \link{matrix} or \link{data.frame} containing 101 \link{numeric}
+rows: min, q01 to q99 and max of catchment elevation distribution [m],
+if not defined a single elevation is used for CemaNeige}
+
+\item{NLayers}{(optional) named \link{vector} of \link{numeric} integer giving the number
+of elevation layers requested \link{-}, required to create CemaNeige module
+inputs, default=5}
+
+\item{IsHyst}{\link{logical} boolean indicating if the hysteresis version of
+CemaNeige is used. See details of \link[airGR:CreateRunOptions]{airGR::CreateRunOptions}.}
 
 \item{...}{used for compatibility with S3 methods}
 }
 \value{
-A \emph{GRiwrmInputsModel} object which is a list of \emph{InputsModel} objects created by \link[airGR:CreateInputsModel]{airGR::CreateInputsModel} with one item per modeled sub-catchment.
+A \emph{GRiwrmInputsModel} object which is a list of \emph{InputsModel}
+objects created by \link[airGR:CreateInputsModel]{airGR::CreateInputsModel} with one item per modeled sub-catchment.
 }
 \description{
 Creation of an InputsModel object for a \strong{airGRiwrm} network
 }
 \details{
-Meteorological data are needed for the nodes of the network that represent a catchment simulated by a rainfall-runoff model. Instead of \link[airGR:CreateInputsModel]{airGR::CreateInputsModel} that has \link{numeric} \link{vector} as time series inputs, this function uses \link{matrix} or \link{data.frame} with the id of the sub-catchment as column names. For single values (\code{ZInputs} or \code{NLayers}), the function requires named \link{vector} with the id of the sub-catchment as name item. If an argument is optional, only the column or the named item has to be provided.
+Meteorological data are needed for the nodes of the network that
+represent a catchment simulated by a rainfall-runoff model. Instead of
+\link[airGR:CreateInputsModel]{airGR::CreateInputsModel} that has \link{numeric} \link{vector} as time series inputs,
+this function uses \link{matrix} or \link{data.frame} with the id of the sub-catchment
+as column names. For single values (\code{ZInputs} or \code{NLayers}), the function
+requires named \link{vector} with the id of the sub-catchment as name item. If an
+argument is optional, only the column or the named item has to be provided.
 
 See \link[airGR:CreateInputsModel]{airGR::CreateInputsModel} documentation for details concerning each input.
+
+Number of rows of \code{Precip}, \code{PotEvap}, \code{Qinf}, \code{Qmin}, \code{TempMean}, \code{TempMin},
+\code{TempMax} must be the same of the length of \code{DatesR} (each row corresponds to
+a time step defined in \code{DatesR}).
+
+For examples of use see topics \link{RunModel.GRiwrmInputsModel}, \link{RunModel_Reservoir},
+and \link{RunModel.Supervisor}.
+
+For example of use of Direct Injection nodes, see vignettes
+"V03_Open-loop_influenced_flow" and "V04_Closed-loop_regulated_withdrawal".
+
+For example of use of Diversion nodes, see example in
+\link{RunModel.GRiwrmInputsModel} topic and vignette
+"V06_Modelling_regulated_diversion".
 }
-\examples{
-###################################################################
-# Run the `airGR::RunModel_Lag` example in the GRiwrm fashion way #
-# Simulation of a reservoir with a purpose of low-flow mitigation #
-###################################################################
-
-## ---- preparation of the InputsModel object
-
-## loading package and catchment data
-library(airGRiwrm)
-data(L0123001)
-
-## ---- specifications of the reservoir
-
-## the reservoir withdraws 1 m3/s when it's possible considering the flow observed in the basin
-Qupstream <- matrix(-sapply(BasinObs$Qls / 1000 - 1, function(x) {
-  min(1, max(0, x, na.rm = TRUE))
-}), ncol = 1)
-
-## except between July and September when the reservoir releases 3 m3/s for low-flow mitigation
-month <- as.numeric(format(BasinObs$DatesR, "\%m"))
-Qupstream[month >= 7 & month <= 9] <- 3
-Qupstream <- Qupstream * 86400 ## Conversion in m3/day
-
-## the reservoir is not an upstream subcachment: its areas is NA
-BasinAreas <- c(NA, BasinInfo$BasinArea)
-
-## delay time between the reservoir and the catchment outlet is 2 days and the distance is 150 km
-LengthHydro <- 150
-## with a delay of 2 days for 150 km, the flow velocity is 75 km per day
-Velocity <- (LengthHydro * 1e3 / 2) / (24 * 60 * 60) ## Conversion km/day -> m/s
-
-# This example is a network of 2 nodes which can be describe like this:
-db <- data.frame(id = c("Reservoir", "GaugingDown"),
-                 length = c(LengthHydro, NA),
-                 down = c("GaugingDown", NA),
-                 area = c(NA, BasinInfo$BasinArea),
-                 model = c(NA, "RunModel_GR4J"),
-                 stringsAsFactors = FALSE)
-
-# Create GRiwrm object from the data.frame
-griwrm <- CreateGRiwrm(db)
-str(griwrm)
-
-# Formatting observations for the hydrological models
-# Each input data should be a matrix or a data.frame with the good id in the name of the column
-Precip <- matrix(BasinObs$P, ncol = 1)
-colnames(Precip) <- "GaugingDown"
-PotEvap <- matrix(BasinObs$E, ncol = 1)
-colnames(PotEvap) <- "GaugingDown"
-
-# Observed flows contain flows that are directly injected in the model
-Qobs = matrix(Qupstream, ncol = 1)
-colnames(Qobs) <- "Reservoir"
-
-# Creation of the GRiwrmInputsModel object (= a named list of InputsModel objects)
-InputsModels <- CreateInputsModel(griwrm,
-                            DatesR = BasinObs$DatesR,
-                            Precip = Precip,
-                            PotEvap = PotEvap,
-                            Qobs = Qobs)
-str(InputsModels)
-
-## run period selection
-Ind_Run <- seq(which(format(BasinObs$DatesR, format = "\%Y-\%m-\%d")=="1990-01-01"),
-               which(format(BasinObs$DatesR, format = "\%Y-\%m-\%d")=="1999-12-31"))
-
-# Creation of the GriwmRunOptions object
-RunOptions <- CreateRunOptions(InputsModels,
-                                IndPeriod_Run = Ind_Run)
-str(RunOptions)
-
-# Parameters of the SD models should be encapsulated in a named list
-ParamGR4J <- c(X1 = 257.238, X2 = 1.012, X3 = 88.235, X4 = 2.208)
-Param <- list(`GaugingDown` = c(Velocity, ParamGR4J))
-
-# RunModel for the whole network
-OutputsModels <- RunModel(InputsModels,
-                          RunOptions = RunOptions,
-                          Param = Param)
-str(OutputsModels)
-
-# Compare Simulation with reservoir and observation of natural flow
-plot(OutputsModels, data.frame(GaugingDown = BasinObs$Qmm[Ind_Run]))
+\seealso{
+\code{\link[=CreateGRiwrm]{CreateGRiwrm()}}, \code{\link[=CreateRunOptions]{CreateRunOptions()}}, \code{\link[=RunModel.GRiwrmInputsModel]{RunModel.GRiwrmInputsModel()}}
 }

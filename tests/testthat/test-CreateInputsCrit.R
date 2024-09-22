@@ -34,6 +34,7 @@ e <- setupRunModel()
 # variables are copied from environment 'e' to the current environment
 # https://stackoverflow.com/questions/9965577/r-copy-move-one-environment-to-another
 for(x in ls(e)) assign(x, get(x, e))
+rm(e)
 
 context("CreateInputsCrit.GRiwrmInputsModel")
 
@@ -102,8 +103,91 @@ test_that("Lavenne criterion: wrong sub-catchment order should throw error", {
     CreateInputsCrit(InputsModel = InputsModel,
                      RunOptions = RunOptions,
                      Obs = Qobs[IndPeriod_Run,],
+                     AprioriIds = c("54057" = "54032", "54032" = "54001", "54095" = "54029"),
+                     transfo = "sqrt"),
+    regexp = "is not calibrated before the node"
+  )
+})
+
+test_that("Lavenne criterion: not upstream a priori nodes are allow if processed before #156", {
+  IC156 <- CreateInputsCrit(
+    InputsModel = InputsModel,
+    RunOptions = RunOptions,
+    Obs = Qobs[IndPeriod_Run, ],
+    AprioriIds = c(
+      "54057" = "54032",
+      "54032" = "54001",
+      "54029" = "54095"
+    ),
+    transfo = "sqrt"
+  )
+  expect_equal(attr(IC156$`54029`, "AprioriId"), c("54029" = "54095"))
+  e <- runCalibration(
+    nodes = nodes,
+    Qinf = NULL,
+    InputsCrit = IC156,
+    CalibOptions = NULL,
+    FUN_CRIT = ErrorCrit_KGE2,
+    runRunModel = FALSE,
+    IsHyst = FALSE
+  )
+  for (x in ls(e)) assign(x, get(x, e))
+  # 54029 not processed as ungauged
+  expect_false(is.null(OutputsCalib$`54029`$CritFinal))
+})
+
+test_that("Lavenne criterion: redefined calibration order works #157", {
+  nodes$donor <- nodes$id
+  nodes$donor[nodes$id == "54095"] <- "54029"
+  e <- setupRunModel(runRunModel = FALSE,
+                          griwrm = CreateGRiwrm(nodes))
+  for (x in ls(e)) assign(x, get(x, e))
+  IC157 <- CreateInputsCrit(
+    InputsModel = InputsModel,
+    RunOptions = RunOptions,
+    Obs = Qobs[IndPeriod_Run, ],
+    AprioriIds = c(
+      "54057" = "54032",
+      "54032" = "54001",
+      "54095" = "54029"
+    ),
+    transfo = "sqrt"
+  )
+  e <- runCalibration(
+    nodes = nodes,
+    Qinf = NULL,
+    InputsCrit = IC157,
+    CalibOptions = NULL,
+    FUN_CRIT = ErrorCrit_KGE2,
+    runRunModel = FALSE,
+    IsHyst = FALSE
+  )
+  for (x in ls(e)) assign(x, get(x, e))
+  expect_false(is.null(OutputsCalib$`54095`$CritFinal))
+})
+
+test_that("Lavenne criterion: current node and a priori node must use the same model", {
+  InputsModel[["54032"]]$FUN_MOD <- RunModel_GR6J
+  expect_error(
+    CreateInputsCrit(InputsModel = InputsModel,
+                     RunOptions = RunOptions,
+                     Obs = Qobs[IndPeriod_Run,],
+                     AprioriIds = AprioriIds,
+                     transfo = "sqrt"),
+    regexp = "must use the same hydrological model"
+  )
+})
+
+test_that("Ungauged node as Apriori node should throw an error", {
+  nodes$model[nodes$id == "54001"] <- "Ungauged"
+  griwrm <- CreateGRiwrm(nodes)
+  InputsModel <- CreateInputsModel(griwrm, DatesR, Precip, PotEvap)
+  expect_error(
+    CreateInputsCrit(InputsModel = InputsModel,
+                     RunOptions = RunOptions,
+                     Obs = Qobs[IndPeriod_Run,],
                      AprioriIds = c("54057" = "54032", "54032" = "54001", "54001" = "54029"),
                      transfo = "sqrt"),
-    regexp = "is not upstream the node"
+    regexp = "\"54001\" is ungauged"
   )
 })

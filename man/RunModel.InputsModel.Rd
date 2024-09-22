@@ -4,7 +4,7 @@
 \alias{RunModel.InputsModel}
 \title{Wrapper for \link[airGR:RunModel]{airGR::RunModel} for one sub-basin}
 \usage{
-\method{RunModel}{InputsModel}(x, RunOptions, Param, FUN_MOD = NULL, ...)
+\method{RunModel}{InputsModel}(x = NULL, RunOptions, Param, FUN_MOD = NULL, InputsModel = NULL, ...)
 }
 \arguments{
 \item{x}{[object of class \emph{InputsModel}] see \link[airGR:CreateInputsModel]{airGR::CreateInputsModel} for details}
@@ -15,18 +15,25 @@
 
 \item{FUN_MOD}{[function] hydrological model function (e.g. \code{\link[airGR]{RunModel_GR4J}}, \code{\link[airGR]{RunModel_CemaNeigeGR4J}})}
 
+\item{InputsModel}{[object of class \emph{InputsModel}] see \code{\link[airGR]{CreateInputsModel}} for details}
+
 \item{...}{Further arguments for compatibility with S3 methods}
 }
 \value{
-[list] see \code{\link[airGR]{RunModel_GR4J}} or \code{\link[airGR]{RunModel_CemaNeigeGR4J}} for details.
-
-If \code{InputsModel} parameter has been created for using a semi-distributed (SD) lag model (See \code{\link[airGR]{CreateInputsModel}}), the list value contains an extra item named \code{QsimDown} which is a numeric series of simulated discharge [mm/time step] related to the run-off contribution of the downstream sub-catchment.
+[object of class \emph{OutputsModel}] returned by \link[airGR:RunModel]{airGR::RunModel}
+(See Value section of \link[airGR:RunModel_GR4J]{airGR::RunModel_GR4J}) completed by new items:
+\itemize{
+\item \code{Qsim_m3}: simulated flow in cubic meters per time step
+\item \code{Qover_m3} volumes of over abstractions which occurs when \code{RunModel_Lag} warns
+for negative simulated flows
+\item \code{Qnat}: only present in case of Diversion in the node, simulated flow in mm
+per time step before application of the Diversion
+\item \code{Qdiv_m3}: only present in case of Diversion in the node, simulated diverted flow in
+cubic meters per time step. The latter differs from the flows time series provided
+in argument \code{Qinf} of \link{CreateInputsModel.GRiwrm} by the limitation of diversion
+applied by the minimum flow threshold \code{Qmin} to keep flowing in the river
+}
 }
 \description{
 Wrapper for \link[airGR:RunModel]{airGR::RunModel} for one sub-basin
-}
-\details{
-This function calls \link[airGR:RunModel]{airGR::RunModel} (See \link[airGR:RunModel]{airGR::RunModel} for further details).
-
-The list produced by the function (See Value section of \link[airGR:RunModel_GR4J]{airGR::RunModel_GR4J}) is here completed by an item \emph{$Qsim_m3} storing the simulated discharge series in m3/s.
 }

@@ -31,68 +31,108 @@ Calibration.GRiwrmInputsModel <- function(InputsModel,
   OutputsModel <- list()
   class(OutputsModel) <- append("GRiwrmOutputsModel", class(OutputsModel))
 
-  for(IM in InputsModel) {
-    message("Calibration.GRiwrmInputsModel: Treating sub-basin ", IM$id, "...")
+  b <- sapply(InputsModel, function(IM) !IM$inUngaugedCluster)
+  gaugedIds <- names(b[b])
 
-    if(useUpstreamQsim && any(IM$UpstreamIsRunoff)) {
-      # Update InputsModel$Qupstream with simulated upstream flows
-      IM <- UpdateQsimUpstream(IM, RunOptions[[IM$id]], OutputsModel)
-    }
+  for (id in gaugedIds) {
+    IM <- InputsModel[[id]]
 
-    if (inherits(InputsCrit[[IM$id]], "InputsCritLavenneFunction")) {
-      IC <- getInputsCrit_Lavenne(IM$id, OutputsModel, InputsCrit)
+    hasUngauged <- IM$hasUngaugedNodes
+    if (hasUngauged) {
+      l  <- updateParameters4Ungauged(id,
+                                      InputsModel,
+                                      RunOptions,
+                                      CalibOptions,
+                                      OutputsModel,
+                                      useUpstreamQsim)
+      IM <- l$InputsModel
+      message("Calibration.GRiwrmInputsModel: Processing sub-basins '",
+              paste(names(IM), collapse = "', '"), "' with '", id, "' as gauged donor...")
+      attr(RunOptions[[id]], "GRiwrmRunOptions") <- l$RunOptions
     } else {
-      IC <- InputsCrit[[IM$id]]
+      message("Calibration.GRiwrmInputsModel: Processing sub-basin '", id, "'...")
+      if (useUpstreamQsim && any(IM$UpstreamIsModeled)) {
+        # Update InputsModel$Qupstream with simulated upstream flows
+        IM <- UpdateQsimUpstream(IM, RunOptions[[id]], OutputsModel)
+      }
     }
 
-    OutputsCalib[[IM$id]] <- Calibration(
-      InputsModel = IM,
-      RunOptions = RunOptions[[IM$id]],
-      InputsCrit = IC,
-      CalibOptions = CalibOptions[[IM$id]],
-      ...
-    )
+    if (inherits(InputsCrit[[id]], "InputsCritLavenneFunction")) {
+      IC <- getInputsCrit_Lavenne(id, OutputsModel, InputsCrit)
+    } else {
+      IC <- InputsCrit[[id]]
+    }
 
-    if(useUpstreamQsim) {
-      # Run the model for the sub-basin
-      OutputsModel[[IM$id]] <- RunModel(
-        x = IM,
-        RunOptions = RunOptions[[IM$id]],
-        Param = OutputsCalib[[IM$id]]$ParamFinalR
+    if (!is.null(IM$isReservoir) && IM$isReservoir & any(is.na(CalibOptions[[id]]$FixedParam))) {
+      stop("Parameters of node '", id, "' using `RunModel_Reservoir` can't be calibrated",
+           "Fix its parameters by using the command:\n",
+           "`CalibOptions[['", id, "']]$FixedParam <- c(Vmax, celerity)`")
+    }
+
+    if (!hasUngauged && IM$isReceiver) {
+      # Ungauged node receiving parameters from upstream or sibling node
+      OutputsCalib[[id]] <- list(
+        ParamFinalR = transferGRparams(InputsModel,
+                                       OutputsCalib[[IM$gaugedId]]$ParamFinalR,
+                                       IM$gaugedId,
+                                       id,
+                                       CalibOptions[[id]]$FixedParam,
+                                       verbose = TRUE)
+      )
+      class(OutputsCalib[[id]]) <- c("OutputsCalib", class(OutputsCalib[[id]]))
+    } else {
+      # Let's calibrate a gauged node!
+      OutputsCalib[[id]] <- Calibration(
+        InputsModel = IM,
+        RunOptions = RunOptions[[id]],
+        InputsCrit = IC,
+        CalibOptions = CalibOptions[[id]],
+        ...
       )
     }
 
+    if (hasUngauged) {
+      Ids <- names(IM)
+      Ids <- Ids[Ids != id]
+      for (uId in Ids) {
+        if (IM[[uId]]$gaugedId == id) {
+          # Add OutputsCalib for ungauged nodes
+          OutputsCalib[[uId]] <- list(
+            ParamFinalR = transferGRparams(InputsModel,
+                                           OutputsCalib[[id]]$ParamFinalR,
+                                           id,
+                                           uId,
+                                           verbose = TRUE)
+          )
+          class(OutputsCalib[[uId]]) <- class(OutputsCalib[[id]])
+        } else {
+          OutputsCalib[[uId]] <- Calibration(
+            InputsModel = IM[[uId]],
+            RunOptions = RunOptions[[uId]],
+            InputsCrit = IC,
+            CalibOptions = CalibOptions[[uId]],
+            ...
+          )
+        }
+      }
+      if (useUpstreamQsim) {
+        OM_subnet <- RunModel_Ungauged(IM,
+                                       RunOptions[[id]],
+                                       OutputsCalib[[id]]$ParamFinalR,
+                                       output.all = TRUE)
+        OutputsModel <- c(OutputsModel, OM_subnet)
+      }
+      IM <- IM[[id]]
+    } else if (useUpstreamQsim) {
+      # Run the model for the sub-basin
+      OutputsModel[[id]] <- RunModel(
+        x = IM,
+        RunOptions = RunOptions[[id]],
+        Param = OutputsCalib[[id]]$ParamFinalR
+      )
+    }
   }
 
   return(OutputsCalib)
 
-}
-
-#' Create InputsCrit for De Lavenne regularization
-#'
-#' Internal function that run [airGR::CreateInputsCrit_Lavenne] on-the-fly with a priori upstream
-#' sub-catchment parameters grabbed during network calibration process.
-#'
-#' @param id [character] the id of the current sub-catchment
-#' @param OutputsModel \[GRiwrmOutputsModel\] object with simulation results of upstream sub-catchments run with calibrated parameters
-#' @param InputsCrit \[InputsCritLavenneFunction\] object internally created by [CreateInputsCrit.GRiwrmInputsModel]
-#'
-#' @return \[InputsCrit\] object with De Lavenne regularization
-#' @import airGR
-#' @noRd
-#'
-getInputsCrit_Lavenne <- function(id, OutputsModel, InputsCrit) {
-  if (!inherits(InputsCrit[[id]], "InputsCritLavenneFunction")) {
-    stop("'InputsCrit[[id]]' must be of class InputsCritLavenneFunction")
-  }
-  AprioriId <- attr(InputsCrit[[id]], "AprioriId")
-  AprCelerity <- attr(InputsCrit[[id]], "AprCelerity")
-  Lavenne_FUN <- attr(InputsCrit[[id]], "Lavenne_FUN")
-  AprParamR <- OutputsModel[[AprioriId]]$RunOptions$Param
-  if(!inherits(OutputsModel[[AprioriId]], "SD")) {
-    # Add default velocity parameter for a priori upstream catchment
-    AprParamR <- c(AprCelerity, AprParamR)
-  }
-  AprCrit <- ErrorCrit(InputsCrit[[AprioriId]], OutputsModel[[AprioriId]])$CritValue
-  return(Lavenne_FUN(AprParamR, AprCrit))
 }

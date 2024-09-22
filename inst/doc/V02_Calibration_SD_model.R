@@ -13,7 +13,6 @@ library(airGRiwrm)
 ## -----------------------------------------------------------------------------
 data(Severn)
 nodes <- Severn$BasinsInfo[, c("gauge_id", "downstream_id", "distance_downstream", "area")]
-nodes$distance_downstream <- nodes$distance_downstream
 nodes$model <- "RunModel_GR4J"
 griwrm <- CreateGRiwrm(nodes, list(id = "gauge_id", down = "downstream_id", length = "distance_downstream"))
 BasinsObs <- Severn$BasinsObs
@@ -59,19 +58,15 @@ str(InputsCrit)
 ## ----CalibOption--------------------------------------------------------------
 CalibOptions <- CreateCalibOptions(InputsModel)
 
-## ----echo=FALSE---------------------------------------------------------------
-save(RunOptions, InputsCrit, CalibOptions, IndPeriod_Run, file = file.path(tempdir(), "V02.RData"))
-
 ## ----Calibration--------------------------------------------------------------
 OutputsCalib <- suppressWarnings(
   Calibration(InputsModel, RunOptions, InputsCrit, CalibOptions))
-ParamMichel <- sapply(OutputsCalib, "[[", "ParamFinalR")
 
 ## ----RunModel-----------------------------------------------------------------
 OutputsModels <- RunModel(
   InputsModel,
   RunOptions = RunOptions,
-  Param = ParamMichel
+  Param = extractParam(OutputsCalib)
 )
 
 ## ----fig.height = 5, fig.width = 8--------------------------------------------

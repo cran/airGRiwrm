@@ -8,19 +8,21 @@
   x,
   type = "l",
   xlab = "Date",
-  ylab = expression("Flow (m"^"3" * "/s)"),
+  ylab = expression("Flow rate (m"^"3" * "/s)"),
   main = "Simulated flows",
-  col = rainbow(ncol(x) - 1),
+  col = grDevices::hcl.colors(ncol(x) - 1, "Zissou 1"),
   legend = colnames(x)[-1],
   legend.cex = 0.7,
   legend.x = "topright",
   legend.y = NULL,
   lty = 1,
+  mgp = c(2.5, 1, 0),
   ...
 )
 }
 \arguments{
-\item{x}{\link{data.frame} with a first column with \link{POSIXt} dates and followings columns with flows at each node of the network}
+\item{x}{\link{data.frame} with a first column with \link{POSIXt} dates and followings
+columns with flows at each node of the network}
 
 \item{type}{\link{character} plot type (See \link{plot.default}), default "l"}
 
@@ -30,9 +32,10 @@
 
 \item{main}{\link{character} main title for the plot, default to "Simulated flows"}
 
-\item{col}{\link{character} plotting color (See \link{par}), default to rainbow colors}
+\item{col}{\link{character} plotting colors (See \link{par})}
 
-\item{legend}{\link{character} see parameter \code{legend} of \link{legend}. Set to \link{NULL} if display of the legend is not wanted}
+\item{legend}{\link{character} see parameter \code{legend} of \link{legend}. Set it to \link{NULL}
+to hide the legend}
 
 \item{legend.cex}{\link{character} \code{cex} parameter for the text of the legend (See \link{par})}
 
@@ -40,11 +43,19 @@
 
 \item{lty}{\link{character} or \link{numeric} The line type (See \link{par})}
 
+\item{mgp}{The margin line for the axis title, axis labels and axis line (See \link{par})}
+
 \item{...}{Further arguments to pass to the \link{matplot} functions}
 }
 \value{
 Screen plot window.
 }
 \description{
-Plot of a \code{Qm3s} object (time series of simulated flows)
+This function plot time series of flow rate in m3/s. It's a method for object
+of class "Qm3s" which can be directly called by \code{plot}. It can also be called
+as a function \code{plot.Qm3s} if the first parameter has the good format.
+}
+\details{
+For examples of use see topics \link{RunModel.GRiwrmInputsModel}, \link{RunModel_Reservoir},
+and \link{RunModel.Supervisor}.
 }

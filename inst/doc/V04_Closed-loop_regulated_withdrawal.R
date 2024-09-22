@@ -14,25 +14,25 @@ library(airGRiwrm)
 ## ----load_cache---------------------------------------------------------------
 data(Severn)
 nodes <- Severn$BasinsInfo[, c("gauge_id", "downstream_id", "distance_downstream", "area")]
-nodes$distance_downstream <- nodes$distance_downstream
 nodes$model <- "RunModel_GR4J"
-griwrm <- CreateGRiwrm(nodes, list(id = "gauge_id", down = "downstream_id", length = "distance_downstream"))
-griwrmV03 <- griwrm
-griwrmV03$model[griwrm$id == "54002"] <- NA
-griwrmV03$model[griwrm$id == "54095"] <- NA
-griwrmV03
 
-## ----griwrm-------------------------------------------------------------------
-griwrmV04 <- rbind(
-  griwrmV03,
+## ----updated_nodes------------------------------------------------------------
+nodes <- rbind(
+  nodes,
   data.frame(
-    id = c("Irrigation1", "Irrigation2"),
-    down = c("54001", "54032"),
-    length = c(35, 10),
+    gauge_id = c("Irrigation1", "Irrigation2"),
+    downstream_id = c("54001", "54032"),
+    distance_downstream = c(35, 10),
     model = NA,
     area = NA
   )
 )
+
+nodes
+
+
+## ----griwm--------------------------------------------------------------------
+griwrmV04 <- CreateGRiwrm(nodes, list(id = "gauge_id", down = "downstream_id", length = "distance_downstream"))
 plot(griwrmV04)
 
 ## ----monthly_water_need-------------------------------------------------------
@@ -42,8 +42,8 @@ DatesR <- BasinsObs[[1]]$DatesR
 PrecipTot <- cbind(sapply(BasinsObs, function(x) {x$precipitation}))
 PotEvapTot <- cbind(sapply(BasinsObs, function(x) {x$peti}))
 Qobs <- cbind(sapply(BasinsObs, function(x) {x$discharge_spec}))
-Precip <- ConvertMeteoSD(griwrm, PrecipTot)
-PotEvap <- ConvertMeteoSD(griwrm, PotEvapTot)
+Precip <- ConvertMeteoSD(griwrmV04, PrecipTot)
+PotEvap <- ConvertMeteoSD(griwrmV04, PotEvapTot)
 
 # Calculation of the water need at the sub-basin scale
 dailyWaterNeed <- PotEvap - Precip
@@ -134,13 +134,13 @@ for (x in 1:ncol(m))
     text(x, y, m[y,x])
 
 ## -----------------------------------------------------------------------------
-# A flow is needed for all direct injection nodes in the network
+# Flow time series are needed for all direct injection nodes in the network
 # even if they may be overwritten after by a controller
-# The Qobs matrix is completed with 2 new columns for the new nodes
-QobsIrrig <- cbind(Qobs[, c("54002", "54095")], Irrigation1 = 0, Irrigation2 = 0)
+QinfIrrig <- data.frame(Irrigation1 = rep(0, length(DatesR)),
+                        Irrigation2 = rep(0, length(DatesR)))
 
 # Creation of the GRiwrmInputsModel object
-IM_Irrig <- CreateInputsModel(griwrmV04, DatesR, Precip, PotEvap, QobsIrrig)
+IM_Irrig <- CreateInputsModel(griwrmV04, DatesR, Precip, PotEvap, QinfIrrig)
 
 ## -----------------------------------------------------------------------------
 sv <- CreateSupervisor(IM_Irrig, TimeStep = 7L)
@@ -156,7 +156,7 @@ fIrrigationFactory <- function(supervisor,
     month <- as.numeric(format(supervisor$ts.date, "%m"))
     U <- irrigationObjective[month, c(2,3)] # m3/s
     meanU <- mean(rowSums(U))
-    if(meanU > 0) {
+    if (meanU > 0) {
       # calculate the naturalized flow from the measured flow and the abstracted flow of the previous week
       lastU <- supervisor$controllers[[supervisor$controller.id]]$U # m3/day
       Qnat <- (Y - rowSums(lastU)) / 86400 # m3/s
@@ -203,16 +203,16 @@ IndPeriod_WarmUp = seq(1,IndPeriod_Run[1]-1)
 RunOptions <- CreateRunOptions(IM_Irrig,
                                IndPeriod_WarmUp = IndPeriod_WarmUp,
                                IndPeriod_Run = IndPeriod_Run)
-ParamV03 <- readRDS(system.file("vignettes", "ParamV03.RDS", package = "airGRiwrm"))
+ParamV02 <- readRDS(system.file("vignettes", "ParamV02.RDS", package = "airGRiwrm"))
 
 ## -----------------------------------------------------------------------------
-OM_Irrig <- RunModel(sv, RunOptions = RunOptions, Param = ParamV03)
+OM_Irrig <- RunModel(sv, RunOptions = RunOptions, Param = ParamV02)
 
 ## -----------------------------------------------------------------------------
 Qm3s <- attr(OM_Irrig, "Qm3s")
-Qm3s <- Qm3s[Qm3s$DatesR > "2003-05-25" & Qm3s$DatesR < "2003-10-05",]
+Qm3s <- Qm3s[Qm3s$DatesR > "2003-02-25" & Qm3s$DatesR < "2003-10-05",]
 oldpar <- par(mfrow=c(2,1), mar = c(2.5,4,1,1))
-plot(Qm3s[, c("DatesR", "54095", "54001", "54032")], main = "", xlab = "", ylim = c(0,40))
+plot(Qm3s[, c("DatesR", "54095", "54001", "54032")], main = "", xlab = "")
 plot(Qm3s[, c("DatesR", "Irrigation1", "Irrigation2")], main = "", xlab = "", legend.x = "bottomright")
 par(oldpar)
 

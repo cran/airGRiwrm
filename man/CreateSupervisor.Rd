@@ -24,21 +24,9 @@ A \code{Supervisor} object which is an \link{environment} containing all the nec
 \description{
 Creation of a Supervisor for handling regulation in a model
 }
-\examples{
-data(Severn)
-nodes <- Severn$BasinsInfo[, c("gauge_id", "downstream_id", "distance_downstream", "area")]
-nodes$model <- "RunModel_GR4J"
-griwrm <- CreateGRiwrm(nodes,
-                 list(id = "gauge_id",
-                      down = "downstream_id",
-                      length = "distance_downstream"))
-BasinsObs <- Severn$BasinsObs
-DatesR <- BasinsObs[[1]]$DatesR
-PrecipTot <- cbind(sapply(BasinsObs, function(x) {x$precipitation}))
-PotEvapTot <- cbind(sapply(BasinsObs, function(x) {x$peti}))
-Qobs <- cbind(sapply(BasinsObs, function(x) {x$discharge_spec}))
-Precip <- ConvertMeteoSD(griwrm, PrecipTot)
-PotEvap <- ConvertMeteoSD(griwrm, PotEvapTot)
-InputsModel <- CreateInputsModel(griwrm, DatesR, Precip, PotEvap, Qobs)
-sv <- CreateSupervisor(InputsModel)
+\details{
+See \link{RunModel.Supervisor} and vignettes for examples of use.
+}
+\seealso{
+\code{\link[=RunModel.Supervisor]{RunModel.Supervisor()}}, \code{\link[=CreateController]{CreateController()}}
 }

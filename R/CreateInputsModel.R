@@ -7,6 +7,7 @@
 #'
 #' @return InputsModel or GRiwrmInputsObject object
 #' @rdname CreateInputsModel
+#' @seealso [CreateInputsModel.GRiwrm()], [airGR::CreateInputsModel()]
 #' @import airGR
 #' @export
 CreateInputsModel <- function(x, ...) {
@@ -17,6 +18,5 @@ CreateInputsModel <- function(x, ...) {
 #' @export
 CreateInputsModel.default <- function(x,
                                       ...) {
-
-  airGR::CreateInputsModel(FUN_MOD = x, ...)
+    airGR::CreateInputsModel(FUN_MOD = x, ...)
 }
